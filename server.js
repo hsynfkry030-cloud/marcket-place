@@ -1,7 +1,7 @@
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 const path = require('path');
-require('dotenv').config();
+// require('dotenv').config(); // این خط در Koyeb نیاز نیست چون متغیرها مستقیماً تنظیم شده‌اند
 
 // تنظیم پورت: ابتدا از متغیر محیطی Koyeb استفاده کن، در غیر این صورت از 3000 استفاده کن
 const app = express();
@@ -13,11 +13,9 @@ const client = new MongoClient(uri);
 let db; // متغیر سراسری برای نگهداری اتصال به دیتابیس
 
 // --- [ Middleware ] ---
-// برای خواندن داده‌های JSON از بدنه درخواست
 app.use(express.json()); 
-// برای خواندن داده‌های فرمی (مانند لاگین)
 app.use(express.urlencoded({ extended: true }));
-// برای سرویس دهی فایل‌های استاتیک (HTML, CSS, JS, تصاویر) از پوشه public
+// برای سرویس دهی فایل‌های استاتیک از پوشه public
 app.use(express.static(path.join(__dirname, 'public')));
 
 
@@ -29,10 +27,39 @@ async function connectDB() {
         console.log("✅ متصل به MongoDB.");
     } catch (error) {
         console.error("❌ خطای اتصال به MongoDB:", error);
-        // در صورت عدم اتصال، برنامه را متوقف کن
         process.exit(1); 
     }
 }
+
+
+// --- [ TEMPORARY API Endpoint: Create Test User ] ---
+// این روت موقت است و بعداً حذف خواهد شد.
+app.get('/create-test-user', async (req, res) => {
+    if (!db) return res.status(503).json({ message: "Database not ready." });
+
+    try {
+        const testAccount = {
+            username: "test", 
+            password: "password", 
+            dateAdded: new Date(),
+        };
+        const collection = db.collection('accounts');
+        
+        const existingUser = await collection.findOne({ username: "test" });
+        if (existingUser) {
+            return res.json({ message: "کاربر تست قبلاً ایجاد شده است." });
+        }
+
+        await collection.insertOne(testAccount);
+        res.status(201).json({ message: "✅ کاربر تست (test/password) با موفقیت در دیتابیس ایجاد شد." });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "خطای داخلی در ایجاد کاربر تست." });
+    }
+});
+// ----------------------------------------------------
+
 
 // --- [ API Endpoint: Login ] ---
 app.post('/login', async (req, res) => {
@@ -86,7 +113,7 @@ app.post('/api/accounts', async (req, res) => {
     try {
         const newAccount = {
             ...req.body,
-            dateAdded: new Date(), // افزودن تاریخ ثبت
+            dateAdded: new Date(),
         };
         const collection = db.collection('accounts');
         const result = await collection.insertOne(newAccount);
@@ -128,7 +155,6 @@ app.delete('/api/accounts/:id', async (req, res) => {
 
 // --- [ Home Route: ریدایرکت به صفحه ورود ] ---
 app.get('/', (req, res) => {
-    // صفحه اصلی را به جای index.html، صفحه login.html (فرض بر وجود این صفحه در public) قرار می دهیم
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
