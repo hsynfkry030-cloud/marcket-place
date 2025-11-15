@@ -6,7 +6,7 @@ const bcrypt = require('bcrypt'); // برای هش کردن و مقایسه ام
 
 // تنظیمات
 const app = express();
-const PORT = process.env.PORT || 3000; 
+const PORT = process.env.PORT || 8000; 
 
 // --- [ اتصال به MongoDB ] ---
 const uri = process.env.MONGODB_URI; 
