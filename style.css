@@ -1,0 +1,67 @@
+body {
+    font-family: Tahoma, sans-serif;
+    background-color: #f4f4f9;
+    color: #333;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+    text-align: center;
+}
+
+h1 {
+    color: #007bff;
+    margin-bottom: 20px;
+}
+
+h2 {
+    color: #6c757d;
+    margin-top: 40px;
+}
+
+button {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-size: 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    margin: 5px; /* اضافه شده برای جدا کردن دکمه‌ها */
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+#message {
+    font-size: 1.2em;
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: white;
+    min-width: 300px;
+}
+
+/* استایل جدید برای نمایش وضعیت Toggle */
+#toggle-status {
+    font-size: 1.5em; /* بزرگ‌تر برای تاکید */
+    font-weight: bold;
+    margin: 15px 0;
+    padding: 10px;
+    border: 2px solid #ccc;
+    border-radius: 5px;
+    min-width: 250px;
+    background-color: #ffffff;
+}
+
+hr {
+    width: 80%;
+    margin: 30px 0;
+    border-color: #ccc;
+}
