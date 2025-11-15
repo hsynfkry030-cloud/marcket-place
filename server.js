@@ -1,129 +1,145 @@
-// server.js
-
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 const path = require('path');
-// استفاده از dotenv برای خواندن متغیرهای محیطی از فایل .env در لوکال
-require('dotenv').config(); 
+require('dotenv').config();
 
+// تنظیم پورت: ابتدا از متغیر محیطی Koyeb استفاده کن، در غیر این صورت از 3000 استفاده کن
 const app = express();
-// تنظیم پورت سرور. Koyeb از متغیر محیطی PORT استفاده می‌کند.
-const port = process.env.PORT || 3000; 
+const PORT = process.env.PORT || 3000; 
 
-// ----------------- تنظیمات MongoDB -----------------
-
-// آدرس اتصال Atlas شما. 
-// در لوکال از MONGODB_URI در فایل .env و در Koyeb از Secret استفاده می‌شود.
-const uri = process.env.MONGODB_URI; 
+// --- [ اتصال به MongoDB ] ---
+const uri = process.env.MONGODB_URI; // استفاده از متغیر محیطی تنظیم شده در Koyeb
 const client = new MongoClient(uri);
+let db; // متغیر سراسری برای نگهداری اتصال به دیتابیس
 
-let db; // متغیر سراسری برای دسترسی به دیتابیس
-
-// ----------------- Middleware -----------------
-// برای پارس کردن درخواست‌های JSON
+// --- [ Middleware ] ---
+// برای خواندن داده‌های JSON از بدنه درخواست
 app.use(express.json()); 
-// سرویس‌دهی فایل‌های ثابت (HTML, CSS, JS فرانت‌اند) از پوشه public
+// برای خواندن داده‌های فرمی (مانند لاگین)
+app.use(express.urlencoded({ extended: true }));
+// برای سرویس دهی فایل‌های استاتیک (HTML, CSS, JS, تصاویر) از پوشه public
 app.use(express.static(path.join(__dirname, 'public')));
 
 
-// ----------------- توابع اتصال به دیتابیس -----------------
+// تابع اتصال به دیتابیس
 async function connectDB() {
     try {
         await client.connect();
-        // نام دیتابیس را 'gameAccountDB' قرار می‌دهیم.
-        db = client.db('gameAccountDB'); 
-        console.log("✅ با موفقیت به MongoDB متصل شد!");
+        db = client.db("gameAccountDB"); // اتصال به دیتابیس gameAccountDB (نام دیتابیس شما)
+        console.log("✅ متصل به MongoDB.");
     } catch (error) {
-        console.error("❌ خطای اتصال به MongoDB:", error.message);
-        // اگر نتوانستیم به دیتابیس وصل شویم، سرور را متوقف می‌کنیم.
+        console.error("❌ خطای اتصال به MongoDB:", error);
+        // در صورت عدم اتصال، برنامه را متوقف کن
         process.exit(1); 
     }
 }
 
-// ----------------- مسیرهای API (Backend Logic) -----------------
+// --- [ API Endpoint: Login ] ---
+app.post('/login', async (req, res) => {
+    const { username, password } = req.body;
 
-// API برای دریافت لیست تمام آگهی‌ها
-app.get('/api/accounts', async (req, res) => {
-    if (!db) return res.status(503).json({ message: "Database service unavailable." });
+    if (!db) {
+        return res.status(503).send('Database connection error.');
+    }
+
     try {
-        const collection = db.collection('accounts');
-        // دریافت تمام آگهی‌ها و مرتب‌سازی بر اساس تاریخ جدیدتر
-        const accounts = await collection.find({}).sort({ dateAdded: -1 }).toArray();
-        res.json(accounts);
+        // جستجوی کاربر در کالکشن 'accounts'
+        const account = await db.collection('accounts').findOne({ 
+            username: username,
+            password: password 
+        });
+
+        if (account) {
+            // ورود موفق: ارسال صفحه اصلی (index.html)
+            res.sendFile(path.join(__dirname, 'public', 'index.html'));
+        } else {
+            // ورود ناموفق: ارسال پیام خطا
+            res.status(401).send('نام کاربری یا رمز عبور اشتباه است.');
+        }
+
     } catch (error) {
-        res.status(500).json({ message: "خطا در دریافت آگهی‌ها", error: error.message });
+        console.error("Login failed:", error);
+        res.status(500).send('خطای داخلی سرور در هنگام احراز هویت.');
     }
 });
 
-// API برای افزودن آگهی جدید
+
+// --- [ API Endpoint: Get All Accounts ] ---
+app.get('/api/accounts', async (req, res) => {
+    if (!db) return res.status(503).json({ message: "Database not ready." });
+
+    try {
+        const collection = db.collection('accounts');
+        const accounts = await collection.find({}).sort({ dateAdded: -1 }).toArray();
+        res.json(accounts);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Internal server error." });
+    }
+});
+
+
+// --- [ API Endpoint: Create New Account ] ---
 app.post('/api/accounts', async (req, res) => {
-    if (!db) return res.status(503).json({ message: "Database service unavailable." });
+    if (!db) return res.status(503).json({ message: "Database not ready." });
 
     try {
         const newAccount = {
             ...req.body,
-            dateAdded: new Date(),
-            // ما فرض می‌کنیم داده‌های اعتبارسنجی شده (title, price, game, etc.) در req.body هستند
+            dateAdded: new Date(), // افزودن تاریخ ثبت
         };
-        
         const collection = db.collection('accounts');
         const result = await collection.insertOne(newAccount);
-        
-        res.status(201).json({ 
-            message: "آگهی با موفقیت ثبت شد.", 
-            accountId: result.insertedId 
+
+        res.status(201).json({
+            message: "حساب کاربری با موفقیت ثبت شد.",
+            accountId: result.insertedId
         });
-        
     } catch (error) {
-        res.status(500).json({ message: "خطا در ثبت آگهی", error: error.message });
+        console.error(error);
+        res.status(500).json({ message: "خطای داخلی در ثبت کاربر." });
     }
 });
 
-// API برای حذف یک آگهی
+
+// --- [ API Endpoint: Delete Account ] ---
 app.delete('/api/accounts/:id', async (req, res) => {
-    if (!db) return res.status(503).json({ message: "Database service unavailable." });
+    if (!db) return res.status(503).json({ message: "Database not ready." });
 
     try {
-        const id = req.params.id;
-        // مطمئن می‌شویم که ID فرستاده شده معتبر است
+        const accountId = req.params.id;
         const collection = db.collection('accounts');
-        const result = await collection.deleteOne({ _id: new ObjectId(id) });
+        const result = await collection.deleteOne({ _id: new ObjectId(accountId) });
 
         if (result.deletedCount === 0) {
-            return res.status(404).json({ message: "آگهی مورد نظر یافت نشد." });
+            return res.status(404).json({ message: "حساب کاربری یافت نشد." });
         }
-        
-        res.status(200).json({ message: "آگهی با موفقیت حذف شد." });
 
+        res.status(200).json({ message: "حذف با موفقیت انجام شد." });
     } catch (error) {
-        // اگر فرمت ID اشتباه باشد (مثلاً کوتاه‌تر از ۲۴ کاراکتر)، ObjectId خطا می‌دهد.
         if (error.name === 'BSONTypeError') {
-            return res.status(400).json({ message: "فرمت ID آگهی ارسالی اشتباه است." });
+            return res.status(400).json({ message: "شناسه (ID) نامعتبر است." });
         }
-        res.status(500).json({ message: "خطا در حذف آگهی", error: error.message });
+        console.error(error);
+        res.status(500).json({ message: "خطای داخلی در حذف کاربر." });
     }
 });
 
-// مسیر اصلی: فایل index.html را از پوشه public ارسال می‌کند
+
+// --- [ Home Route: ریدایرکت به صفحه ورود ] ---
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    // صفحه اصلی را به جای index.html، صفحه login.html (فرض بر وجود این صفحه در public) قرار می دهیم
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
 
-// ----------------- شروع سرور -----------------
+// --- [ شروع سرور ] ---
 async function startServer() {
-    // اگر URI دیتابیس تنظیم نشده باشد، هشدار می‌دهیم
-    if (!uri) {
-        console.error("❌ MONGODB_URI در فایل .env یا Environment Variables تنظیم نشده است!");
-        console.error("سرور را متوقف می‌کنیم. لطفاً Connection String را وارد کنید.");
-        process.exit(1); 
-    }
+    await connectDB(); // ابتدا به دیتابیس متصل شو
     
-    await connectDB(); // ابتدا به دیتابیس متصل می‌شود
-    
-    app.listen(port, () => {
-        console.log(`🚀 سرور با موفقیت بر روی پورت ${port} اجرا شد!`);
-        console.log(`برای دسترسی محلی: http://localhost:${port}`);
+    app.listen(PORT, () => {
+        console.log(`🚀 سرور با موفقیت بر روی پورت ${PORT} شروع شد.`);
+        console.log(`🌐 وبسایت در حال اجرا: http://localhost:${PORT}`);
     });
 }
 
